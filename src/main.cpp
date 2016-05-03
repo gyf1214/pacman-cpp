@@ -67,7 +67,8 @@ namespace Pacman {
 	enum Direction {
 		stay = -1,
         up = 0, right = 1, down = 2, left = 3,
-        ur = 4, dr = 5, dl = 6, ul = 7
+        ur = 4, dr = 5, dl = 6, ul = 7,
+        nop = 8
 	};
 
 	struct FieldProp {
@@ -291,7 +292,7 @@ namespace Pacman {
 				NewFruits &fruits = newFruits[newFruitsCount++];
 				fruits.newFruitCount = 0;
 				for (i = 0; i < generatorCount; ++i) {
-					for (int d = 0; d < 8; ++d) {
+					for (Direction d = up; d < 8; ++d) {
 						int r = (generators[i].row + dy[d] + height) % height;
                         int c = (generators[i].col + dx[d] + width) % width;
 						if (fieldStatic[r][c] & generator || fieldContent[r][c] & (smallFruit | largeFruit)) {
@@ -634,8 +635,10 @@ namespace Pacman {
     }
 }
 
+using namespace Pacman;
+
 int main() {
-    Pacman::RunJudge<Pacman::Greedy::GreedyJudge>();
+    RunJudge<Greedy::GreedyJudge>();
 
 	return 0;
 }
