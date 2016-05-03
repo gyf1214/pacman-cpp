@@ -51,7 +51,6 @@
 #define MAX_GENERATOR_COUNT 4 // 每个象限1
 #define MAX_PLAYER_COUNT 4
 #define MAX_TURN 100
-#define _BOTZONE_ONLINE
 
 // 你也可以选用 using namespace std; 但是会污染命名空间
 using std::string;
@@ -728,7 +727,6 @@ namespace Helpers
 
 int main()
 {
-	string dict[] = { "NAIVE!", "OMG", "Excited!", "I'm angry!" };
 	Pacman::GameField gameField;
 	string data, globalData; // 这是回合之间可以传递的信息
 
@@ -746,10 +744,6 @@ int main()
 		if (Helpers::actionScore[d] > Helpers::actionScore[maxD])
 			maxD = d;
 
-	// 随机决定是否叫嚣
-	if (rand() % 6)
-		gameField.WriteOutput((Pacman::Direction)(maxD - 1), "", data, globalData);
-	else
-		gameField.WriteOutput((Pacman::Direction)(maxD - 1), dict[Helpers::RandBetween(0, 4)], data, globalData);
+	gameField.WriteOutput((Pacman::Direction)(maxD - 1), "", data, globalData);
 	return 0;
 }
