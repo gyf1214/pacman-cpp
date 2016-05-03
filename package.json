@@ -1,0 +1,10 @@
+{
+  "name": "pacman_cpp",
+  "version": "0.1.0",
+  "description": "pacman AI CPP version",
+  "author": "TinyTiny",
+  "license": "MIT",
+  "devDependencies": {
+    "gulp": "^3.9.1"
+  }
+}
