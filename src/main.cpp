@@ -538,24 +538,8 @@ namespace Pacman
 		int ReadInput(const char *localFileName, string &obtainedData, string &obtainedGlobalData)
 		{
 			string str, chunk;
-#ifdef _BOTZONE_ONLINE
 			std::ios::sync_with_stdio(false); //ω\\)
 			getline(cin, str);
-#else
-			if (localFileName)
-			{
-				std::ifstream fin(localFileName);
-				if (fin)
-					while (getline(fin, chunk) && chunk != "")
-						str += chunk;
-				else
-					while (getline(cin, chunk) && chunk != "")
-						str += chunk;
-			}
-			else
-				while (getline(cin, chunk) && chunk != "")
-					str += chunk;
-#endif
 			Json::Reader reader;
 			Json::Value input;
 			reader.parse(str, input);
@@ -639,80 +623,9 @@ namespace Pacman
 			ret["globaldata"] = globalData;
 			ret["debug"] = (Json::Int)seed;
 
-#ifdef _BOTZONE_ONLINE
 			Json::FastWriter writer; // 在线评测的话能用就行……
-#else
-			Json::StyledWriter writer; // 本地调试这样好看 > <
-#endif
-			cout << writer.write(ret) << endl;
-		}
 
-		// 用于显示当前游戏状态，调试用。
-		// 提交到平台后会被优化掉。
-		inline void DebugPrint() const
-		{
-#ifndef _BOTZONE_ONLINE
-			printf("回合号【%d】存活人数【%d】| 图例 产生器[G] 有玩家[0/1/2/3] 多个玩家[*] 大豆[o] 小豆[.]\n", turnID, aliveCount);
-			for (int _ = 0; _ < MAX_PLAYER_COUNT; _++)
-			{
-				const Player &p = players[_];
-				printf("[玩家%d(%d, %d)|力量%d|加成剩余回合%d|%s]\n",
-					_, p.row, p.col, p.strength, p.powerUpLeft, p.dead ? "死亡" : "存活");
-			}
-			putchar(' ');
-			putchar(' ');
-			for (int c = 0; c < width; c++)
-				printf("  %d ", c);
-			putchar('\n');
-			for (int r = 0; r < height; r++)
-			{
-				putchar(' ');
-				putchar(' ');
-				for (int c = 0; c < width; c++)
-				{
-					putchar(' ');
-					printf((fieldStatic[r][c] & wallNorth) ? "---" : "   ");
-				}
-				printf("\n%d ", r);
-				for (int c = 0; c < width; c++)
-				{
-					putchar((fieldStatic[r][c] & wallWest) ? '|' : ' ');
-					putchar(' ');
-					int hasPlayer = -1;
-					for (int _ = 0; _ < MAX_PLAYER_COUNT; _++)
-						if (fieldContent[r][c] & playerID2Mask[_])
-							if (hasPlayer == -1)
-								hasPlayer = _;
-							else
-								hasPlayer = 4;
-					if (hasPlayer == 4)
-						putchar('*');
-					else if (hasPlayer != -1)
-						putchar('0' + hasPlayer);
-					else if (fieldStatic[r][c] & generator)
-						putchar('G');
-					else if (fieldContent[r][c] & playerMask)
-						putchar('*');
-					else if (fieldContent[r][c] & smallFruit)
-						putchar('.');
-					else if (fieldContent[r][c] & largeFruit)
-						putchar('o');
-					else
-						putchar(' ');
-					putchar(' ');
-				}
-				putchar((fieldStatic[r][width - 1] & wallEast) ? '|' : ' ');
-				putchar('\n');
-			}
-			putchar(' ');
-			putchar(' ');
-			for (int c = 0; c < width; c++)
-			{
-				putchar(' ');
-				printf((fieldStatic[height - 1][c] & wallSouth) ? "---" : "   ");
-			}
-			putchar('\n');
-#endif
+			cout << writer.write(ret) << endl;
 		}
 
 		Json::Value SerializeCurrentTurnChange()
@@ -832,9 +745,6 @@ int main()
 	for (d = 0; d < 5; d++)
 		if (Helpers::actionScore[d] > Helpers::actionScore[maxD])
 			maxD = d;
-
-	// 输出当前游戏局面状态以供本地调试。注意提交到平台上会自动优化掉，不必担心。
-	gameField.DebugPrint();
 
 	// 随机决定是否叫嚣
 	if (rand() % 6)
