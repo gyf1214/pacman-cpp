@@ -9,8 +9,8 @@
 #include <stack>
 #include "jsoncpp/json.h"
 
-#define FIELD_MAX_HEIGHT 20
-#define FIELD_MAX_WIDTH 20
+#define FIELD_MAX_HEIGHT 12
+#define FIELD_MAX_WIDTH 12
 #define MAX_GENERATOR_COUNT 4
 #define MAX_PLAYER_COUNT 4
 #define MAX_TURN 100
@@ -22,9 +22,12 @@ using std::cin;
 using std::cout;
 using std::endl;
 using std::getline;
-using std::runtime_error;
+using std::pair;
+using std::min;
+using std::cerr;
 
 namespace Pacman {
+    const double infi = 1e300;
 	const time_t seed = time(0);
 	const int dx[] = { 0, 1, 0, -1, 1, 1, -1, -1 }, dy[] = { -1, 0, 1, 0, -1, 1, 1, -1 };
 
@@ -430,6 +433,21 @@ namespace Pacman {
 
 			cout << writer.write(ret) << endl;
 		}
+
+        int GetValids(int id, Direction *valids) {
+            int ret = 0;
+            for (Direction d = stay; d < 4; ++d) {
+                if (ActionValid(id, d)) valids[ret++] = d;
+            }
+            return ret;
+        }
+
+        inline FieldProp Front(const FieldProp &u, const Direction &d) {
+            FieldProp ret;
+            ret.row = (u.row + dy[d] + height) % height;
+            ret.col = (u.col + dx[d] + width) % width;
+            return ret;
+        }
 	};
 
     namespace Util {
@@ -450,88 +468,174 @@ namespace Pacman {
                 if (game.players[i].dead) continue;
                 if (id != i) {
                     Direction valids[5];
-                    int vnt = 0;
-                    for (Direction d = stay; d < 4; ++d) {
-                        if (game.ActionValid(i, d)) {
-                            valids[vnt++] = d;
-                        }
-                    }
+                    int vnt = game.GetValids(i, valids);
                     game.actions[i] = valids[Util::Random(0, vnt)];
                 } else game.actions[i] = action;
             }
             return game.NextTurn();
         }
     };
-}
 
-namespace Helpers {
-	int actionScore[5] = {};
+    class Navigator {
+        GameField &game;
+    public:
+        int dis[FIELD_MAX_HEIGHT][FIELD_MAX_WIDTH][FIELD_MAX_HEIGHT][FIELD_MAX_WIDTH];
 
-	inline int RandBetween(int a, int b) {
-		if (a > b) swap(a, b);
-		return rand() % (b - a) + a;
-	}
+        Navigator(GameField &g) : game(g) {
+            for (int i = 0; i < game.height; ++i) {
+                for (int j = 0; j < game.width; ++j) bfs(i, j);
+            }
+        }
 
-	void RandomPlay(Pacman::GameField &gameField, int myID) {
-		int count = 0, myAct = -1;
-		for (;;) {
-			for (int i = 0; i < MAX_PLAYER_COUNT; ++i) {
-				if (gameField.players[i].dead) continue;
-				Pacman::Direction valid[5];
-				int vCount = 0;
-				for (Pacman::Direction d = Pacman::stay; d < 4; ++d)
-					if (gameField.ActionValid(i, d))
-						valid[vCount++] = d;
-				gameField.actions[i] = valid[RandBetween(0, vCount)];
-			}
+        void bfs(int i, int j) {
+            int (*dist)[FIELD_MAX_WIDTH] = dis[i][j];
+            dist[i][j] = 1;
+            FieldProp q[FIELD_MAX_HEIGHT * FIELD_MAX_WIDTH];
+            int l = 0, r = 1;
+            q[0].row = i;
+            q[0].col = j;
+            while (r > l) {
+                FieldProp u = q[l++];
+                for (Direction d = up; d < 4; ++d) {
+                    if (game.fieldStatic[u.row][u.col] & direction2OpposingWall[d]) continue;
+                    FieldProp v = game.Front(u, d);
+                    if ((game.fieldStatic[v.row][v.col] & generator) || dist[v.row][v.col]) continue;
+                    dist[v.row][v.col] = dist[u.row][u.col] + 1;
+                    q[r++] = v;
+                }
+            }
+        }
+    };
 
-			if (count == 0)
-				myAct = gameField.actions[myID];
-			bool hasNext = gameField.NextTurn();
-			count++;
+    namespace Greedy {
+        const double dMix = 8, sMix = 0.9, lMix = 0.9, gMix = 0.9;
 
-			if (!hasNext)
-				break;
-		}
+        class Judge {
+        protected:
+            GameField &game;
+            Navigator &nav;
+            int id;
+        public:
+            Judge(GameField &g, Navigator &n, int i) : game(g), nav(n), id(i) {}
 
-		int rank2player[] = { 0, 1, 2, 3 };
-		for (int j = 0; j < MAX_PLAYER_COUNT; ++j)
-			for (int k = 0; k < MAX_PLAYER_COUNT - j - 1; ++k)
-				if (gameField.players[rank2player[k]].strength > gameField.players[rank2player[k + 1]].strength)
-					swap(rank2player[k], rank2player[k + 1]);
+            inline double rev(int x) {
+                return x ? 1.0 / x : 0;
+            }
 
-		int scorebase = 1;
-		if (rank2player[0] == myID)
-			actionScore[myAct + 1]++;
-		else
-			for (int j = 1; j < MAX_PLAYER_COUNT; ++j) {
-				if (gameField.players[rank2player[j - 1]].strength < gameField.players[rank2player[j]].strength)
-					scorebase = j + 1;
-				if (rank2player[j] == myID) {
-					actionScore[myAct + 1] += scorebase;
-					break;
-				}
-			}
+            double FruitVal() {
+                double ret = 0.0;
+                Player &p = game.players[id];
+                for (int i = 0; i < game.height; ++i) {
+                    for (int j = 0; j < game.width; ++j) {
+                        if (game.fieldContent[i][j] & smallFruit) {
+                            ret += sMix * rev(nav.dis[p.row][p.col][i][j]);
+                        } else if (game.fieldContent[i][j] & largeFruit) {
+                            ret += lMix * rev(nav.dis[p.row][p.col][i][j]);
+                        }
+                    }
+                }
+                return ret;
+            }
 
-		while (count-- > 0)
-			gameField.PopState();
-	}
+            double GeneratorVal() {
+                double ret = 0.0;
+                Player &p = game.players[id];
+                for (int i = 0; i < game.generatorCount; ++i) {
+                    FieldProp &g = game.generators[i];
+                    for (Direction d = up; d < 8; ++d) {
+                        FieldProp v = game.Front(g, d);
+                        int t = nav.dis[p.row][p.col][v.row][v.col];
+                        ret += gMix * rev(t) * rev(t);
+                    }
+                }
+                return ret / game.generatorTurnLeft;
+            }
+
+            double StrengthVal() {
+                Player &p = game.players[id];
+                double ret = p.strength;
+                if (p.powerUpLeft > 0) ret -= dMix;
+                return ret;
+            }
+
+            inline double Val() {
+                return FruitVal() + GeneratorVal() + StrengthVal();
+            }
+        };
+
+        class NaiveJudge : Judge {
+        public:
+            NaiveJudge(GameField &g, Navigator &n, int i) : Judge(g, n, i) {}
+
+            double operator()(Direction d) {
+                Simulator s(game, id);
+                s.RandomMove(d);
+                double ret = Val();
+                game.PopState();
+                return ret;
+            }
+        };
+
+        class GreedyJudge : Judge {
+            double ans;
+            Direction dir;
+        public:
+            GreedyJudge(GameField &g, Navigator &n, int i) : Judge(g, n, i) {}
+
+            void DFS(int i) {
+                if (i >= 4) {
+                    game.NextTurn();
+                    ans = min(ans, Val());
+                    game.PopState();
+                    return;
+                } else if (i == id) {
+                    game.actions[i] = dir;
+                    DFS(i + 1);
+                } else {
+                    for (Direction d = stay; d < 4; ++d) {
+                        if (!game.ActionValid(i, d)) continue;
+                        game.actions[i] = d;
+                        DFS(i + 1);
+                    }
+                }
+            }
+
+            double operator()(Direction d) {
+                dir = d;
+                ans = infi;
+                DFS(0);
+                return ans;
+            }
+        };
+    }
+
+    template <class Judge>
+    void RunJudge() {
+        GameField game;
+        string data, globalData;
+        int id = game.ReadInput(data, globalData);
+        Navigator nav(game);
+        srand(seed ^ id);
+
+        Judge eval(game, nav, id);
+
+        double ans = -infi;
+        Direction best;
+        for (Direction d = stay; d < 4; ++d) {
+            if (!game.ActionValid(id, d)) continue;
+            double t = eval(d);
+            if (t > ans) {
+                ans = t;
+                best = d;
+            }
+        }
+
+        game.WriteOutput(best, "", data, globalData);
+    }
 }
 
 int main() {
-	Pacman::GameField gameField;
-	string data, globalData;
+    Pacman::RunJudge<Pacman::Greedy::GreedyJudge>();
 
-	int myID = gameField.ReadInput(data, globalData);
-	srand(Pacman::seed + myID);
-
-	for (int i = 0; i < 1000; ++i) Helpers::RandomPlay(gameField, myID);
-
-	int maxD = 0, d;
-	for (d = 0; d < 5; ++d)
-		if (Helpers::actionScore[d] > Helpers::actionScore[maxD])
-			maxD = d;
-
-	gameField.WriteOutput((Pacman::Direction)(maxD - 1), "", data, globalData);
 	return 0;
 }
