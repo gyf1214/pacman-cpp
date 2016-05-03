@@ -3,7 +3,7 @@ var exec = require('child_process').exec;
 
 gulp.task('make', function(cb) {
   var child = exec('make', function (err) {
-    cb(err);
+    cb();
   });
   child.stdout.pipe(process.stdout);
   child.stderr.pipe(process.stderr);
