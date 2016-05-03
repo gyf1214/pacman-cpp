@@ -1,12 +1,10 @@
-#include <fstream>
-#include <cstdio>
 #include <cstdlib>
+#include <cstdio>
 #include <ctime>
+#include <cstring>
 #include <iostream>
 #include <algorithm>
 #include <string>
-#include <cstring>
-#include <stack>
 #include "jsoncpp/json.h"
 
 #define FIELD_MAX_HEIGHT 12
