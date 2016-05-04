@@ -22,6 +22,7 @@ using std::endl;
 using std::getline;
 using std::pair;
 using std::min;
+using std::max;
 using std::cerr;
 
 namespace Pacman {
@@ -178,12 +179,14 @@ namespace Pacman {
             return true;
         }
 
-
-        inline bool ActionValid(int playerID, Direction &dir) const {
+        inline bool ActionValid(const FieldProp &p, Direction &dir) const {
             if (dir == stay) return true;
-            const Player &p = players[playerID];
             const GridStaticType &s = fieldStatic[p.row][p.col];
             return dir >= -1 && dir < 4 && !(s & direction2OpposingWall[dir]) && !(s & generator);
+        }
+
+        inline bool ActionValid(int playerID, Direction &dir) const {
+            return ActionValid(players[playerID], dir);
         }
 
         bool NextTurn() {
@@ -507,7 +510,10 @@ namespace Pacman {
     };
 
     namespace Greedy {
-        const double dMix = 8, sMix = 0.9, lMix = 0.9, gMix = 0.9;
+        const double dMix = 5, sMix = 0.9, lMix = 0.1, gMix = 0.9;
+
+        const int depth = 4;
+        const int repeat = 800;
 
         class Judge {
         protected:
@@ -606,7 +612,48 @@ namespace Pacman {
                 return ans;
             }
         };
+
+        class MontJudge : Judge {
+            Direction actions[depth];
+            double ans;
+        public:
+            MontJudge(GameField &g, Navigator &n, int i) : Judge(g, n, i) {}
+
+            void DFS(int i, FieldProp x) {
+                if (i == depth) {
+                    double ret = infi;
+                    for (int _ = 0; _ < repeat; ++_) {
+                        Simulator s(game, id);
+                        int turns = depth;
+                        for (int k = 0; k < turns; ++k) {
+                            if (!s.RandomMove(actions[k])) turns = k + 1;
+                        }
+                        double v = Val();
+                        for (int k = 0; k < turns; ++k) game.PopState();
+                        if (v <= ans) return;
+                        ret = min(ret, v);
+                    }
+                    ans = ret;
+                } else {
+                    for (Direction d = stay; d < 4; ++d) {
+                        if (game.ActionValid(x, d)) {
+                            actions[i] = d;
+                            DFS(i + 1, game.Front(x, d));
+                        }
+                    }
+                }
+            }
+
+            double operator()(Direction d) {
+                actions[0] = d;
+                ans = -infi;
+                DFS(1, game.Front(game.players[id], d));
+                return ans;
+            }
+        };
     }
+
+    const Direction turnSearch[] = { up, right, down, left, stay };
 
     template <class Judge>
     void RunJudge() {
@@ -620,7 +667,8 @@ namespace Pacman {
 
         double ans = -infi;
         Direction best;
-        for (Direction d = stay; d < 4; ++d) {
+        for (int i = 0; i < 5; ++i) {
+            Direction d = turnSearch[i];
             if (!game.ActionValid(id, d)) continue;
             double t = eval(d);
             if (t > ans) {
@@ -633,10 +681,12 @@ namespace Pacman {
     }
 }
 
-using namespace Pacman;
+using Pacman::RunJudge;
+using Pacman::Greedy::GreedyJudge;
+using Pacman::Greedy::MontJudge;
 
 int main() {
-    RunJudge<Greedy::GreedyJudge>();
+    RunJudge<MontJudge>();
 
     return 0;
 }
