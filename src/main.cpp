@@ -510,10 +510,10 @@ namespace Pacman {
     };
 
     namespace Greedy {
-        const double dMix = 5, sMix = 0.9, lMix = 0.1, gMix = 0.9;
+        const double dMix = 8, sMix = 1.8, lMix = 1.8, gMix = 0.9;
 
         const int depth = 4;
-        const int repeat = 800;
+        const int repeat = 1000;
 
         class Judge {
         protected:
