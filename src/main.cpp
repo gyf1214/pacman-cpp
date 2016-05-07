@@ -445,6 +445,7 @@ namespace Pacman {
         }
 
         inline FieldProp Front(const FieldProp &u, const Direction &d) {
+            if (d == -1) return u;
             FieldProp ret;
             ret.row = (u.row + dy[d] + height) % height;
             ret.col = (u.col + dx[d] + width) % width;
@@ -510,7 +511,7 @@ namespace Pacman {
     };
 
     namespace Greedy {
-        const double dMix = 8, sMix = 1.8, lMix = 1.8, gMix = 0.9;
+        const double dMix = 8, sMix = 0.9, lMix = 0.9, gMix = 0.9;
 
         const int depth = 4;
         const int repeat = 1000;
